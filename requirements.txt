@@ -1,0 +1,16 @@
+numpy>=1.24
+matplotlib>=3.7
+scikit-learn>=1.3
+graphviz>=0.20
+pytest>=7.0
+
+# Core conversion tools
+nbconvert>=7.16.0
+jupyter_client>=8.0.0
+
+# Required for --to webpdf
+playwright>=1.40.0
+
+# Common dependencies for Automatic Gradient notebooks
+nbformat>=5.10.0
+ipykernel>=6.29.0
