@@ -1,0 +1,116 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+
+% Page Geometry setup
+\geometry{a4paper, margin=1in}
+
+% Code snippet configurations
+\definecolor{codegray}{rgb}{0.95,0.95,0.95}
+\definecolor{commentgreen}{rgb}{0.12,0.53,0.22}
+\lstset{
+    backgroundcolor=\color{codegray},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    commentstyle=\color{commentgreen},
+    frame=single,
+    language=Python,
+    showstringspaces=false
+}
+
+\title{\textbf{Analysis of Computational Graphs and Backpropagation}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+To see exactly how this code works, let’s build a small mathematical graph, watch how the \texttt{backward()} function constructs it, and see how each line changes its state.
+
+Let’s assume we are calculating a simple equation: 
+\begin{equation*}
+    z = (x + y) \times 2
+\end{equation*}
+
+\section{The Initial Computational Graph}
+When you write expressions using your \texttt{Value} class, Python builds a directed graph behind the scenes. Every node stores its \textit{data}, its gradient (\textit{grad}), and pointer references to its creators (\texttt{\_prev}).
+
+Here is what the initial state of our nodes looks like before \texttt{z.backward()} is called:
+\begin{itemize}
+    \item \textbf{Node $x$:} $\text{data}=3.0$, $\text{grad}=0.0$, $\texttt{\_prev}=()$
+    \item \textbf{Node $y$:} $\text{data}=4.0$, $\text{grad}=0.0$, $\texttt{\_prev}=()$
+    \item \textbf{Node $(x+y)$:} $\text{data}=7.0$, $\text{grad}=0.0$, $\texttt{\_prev}=(x, y)$
+    \item \textbf{Node $z$:} $\text{data}=14.0$, $\text{grad}=0.0$, $\texttt{\_prev}=((x+y), 2)$
+\end{itemize}
+
+\section{How Each Section of \texttt{backward()} Updates the Graph}
+Let's trace the function execution line-by-line to see how it dynamically alters this network.
+
+\subsection*{Section A: The Setup}
+\begin{lstlisting}
+topo = []
+visited = set()
+\end{lstlisting}
+\textbf{Effect on Graph:} No structural changes yet. This simply allocates a blank tracking sheet (\texttt{visited}) to avoid infinite loops, and an empty conveyor belt (\texttt{topo}) to structure our order of execution.
+
+\subsection*{Section B: Building the Topological Order}
+\begin{lstlisting}
+def build(v):
+    if v not in visited:
+        visited.add(v)
+        for child in v._prev:
+            build(child)
+        topo.append(v)
+
+build(self) # triggered on 'z'
+\end{lstlisting}
+\textbf{Effect on Graph:} This walks \textit{backward} through the parent arrows (\texttt{\_prev}) to map out dependencies. Because it appends to \texttt{topo} after visiting children, it orders them from the very starting inputs up to the output.
+
+\noindent \textbf{Resulting State of \texttt{topo}:} \texttt{[x, y, (x+y), Value(2), z]}
+
+\subsection*{Section C: Planting the Seed Gradient}
+\begin{lstlisting}
+self.grad = 1.0
+\end{lstlisting}
+\textbf{Effect on Graph:} This updates the final node ($z$)'s gradient from $0.0$ to $1.0$. In calculus, the derivative of anything with respect to itself is 1:
+\begin{equation*}
+    \frac{\partial z}{\partial z} = 1
+\end{equation*}
+Without this line, all downstream gradients would multiply by zero and vanish.
+
+\subsection*{Section D: The Domino Effect (Backpropagation)}
+\begin{lstlisting}
+for node in reversed(topo):
+    node._backward()
+\end{lstlisting}
+By reversing our \texttt{topo} list, we loop through the nodes in exact reverse order: \texttt{[z, Value(2), (x+y), y, x]}.
+
+As each node calls its specific \texttt{.\_backward()} function, it applies the mathematical \textbf{Chain Rule} to update the gradients of its immediate parent inputs:
+
+\subsubsection*{Processing $z$:}
+\begin{itemize}
+    \item It looks at its operation ($\times$).
+    \item It updates its inputs' gradients: \texttt{(x+y).grad} becomes $2.0$ (since $1.0 \times 2$).
+\end{itemize}
+
+\subsubsection*{Processing $(x+y)$:}
+\begin{itemize}
+    \item It looks at its operation ($+$).
+    \item It passes its accumulated gradient ($2.0$) directly back to its inputs: \texttt{x.grad} becomes $2.0$ and \texttt{y.grad} becomes $2.0$.
+\end{itemize}
+
+\section*{Final State of the Graph}
+Once the loop finishes executing, your computational graph's state is completely transformed. The forward data remains untouched, but the analytical derivative values have cleanly saturated throughout the entire architecture:
+\begin{itemize}
+    \item \textbf{Node $x$:} $\text{data}=3.0$, $\text{grad}=2.0$
+    \item \textbf{Node $y$:} $\text{data}=4.0$, $\text{grad}=2.0$
+    \item \textbf{Node $(x+y)$:} $\text{data}=7.0$, $\text{grad}=2.0$
+    \item \textbf{Node $z$:} $\text{data}=14.0$, $\text{grad}=1.0$
+\end{itemize}
+
+\end{document}
