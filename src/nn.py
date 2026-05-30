@@ -1,17 +1,19 @@
+# src/nn.py
 import random
 from .engine import Value
 
-
 class Neuron:
-
     def __init__(self, nin, activation='tanh'):
-        self.w = [Value(random.uniform(-1, 1)) for _ in range(nin)]
+        # FIXED: Scale weights down by 0.1 to avoid saturation early on
+        self.w = [Value(random.uniform(-1, 1) * 0.1) for _ in range(nin)]
         self.b = Value(0.0)
         self.activation = activation
 
     def __call__(self, x):
+        # Ensure inputs are treated as Value instances
         x = [xi if isinstance(xi, Value) else Value(xi) for xi in x]
         act = sum((wi * xi for wi, xi in zip(self.w, x)), self.b)
+        
         if self.activation == 'tanh':
             return act.tanh()
         elif self.activation == 'relu':
@@ -31,11 +33,13 @@ class Neuron:
 
 
 class Layer:
-
     def __init__(self, nin, nout, activation='tanh'):
         self.neurons = [Neuron(nin, activation) for _ in range(nout)]
 
     def __call__(self, x):
+        # FIXED: Ensure input x is always processed as a list/iterable
+        if not isinstance(x, (list, tuple)):
+            x = [x]
         outs = [n(x) for n in self.neurons]
         return outs[0] if len(outs) == 1 else outs
 
@@ -47,13 +51,16 @@ class Layer:
 
 
 class MLP:
-
     def __init__(self, nin, nouts, activation='tanh'):
         sizes = [nin] + nouts
-        self.layers = [
-            Layer(sizes[i], sizes[i + 1], activation)
-            for i in range(len(nouts))
-        ]
+        self.layers = []
+        
+        # FIXED: Build hidden layers using your chosen activation
+        for i in range(len(nouts) - 1):
+            self.layers.append(Layer(sizes[i], sizes[i + 1], activation))
+            
+        # FIXED: Output layer must be 'linear' so MSE loss can compute cleanly
+        self.layers.append(Layer(sizes[-2], sizes[-1], activation='linear'))
 
     def __call__(self, x):
         for layer in self.layers:

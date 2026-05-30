@@ -1,12 +1,10 @@
+# src/engine.py
 import math
 
-
 class Value:
-
     def __init__(self, data, children=(), _op='', label=''):
         self.data = float(data)
         self.grad = 0.0
-
         self._backward = lambda: None
         self._prev = set(children)
         self._op = _op
@@ -119,14 +117,12 @@ class Value:
     def backward(self):
         topo = []
         visited = set()
-
         def build(v):
             if v not in visited:
                 visited.add(v)
                 for child in v._prev:
                     build(child)
                 topo.append(v)
-
         build(self)
 
         self.grad = 1.0

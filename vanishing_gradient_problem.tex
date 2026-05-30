@@ -1,0 +1,111 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+
+% Custom styling for Python code blocks
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.8}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{pythonstyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=4
+}
+
+\begin{document}
+
+\section*{The Structural Graph Broken Link Problem}
+
+In a custom scalar autograd engine, a Multi-Layer Perceptron (MLP) computes the forward pass by sequentially mapping layers. Let $L^{(k)}$ represent the $k$-th layer of the network.
+
+\subsection*{The Mathematical Graph Breakdown}
+
+For an intermediate hidden layer with $m$ neurons ($m > 1$), the forward transformation yields a vector (or an ordered sequence) of computational graph nodes:
+\[
+L^{(k)}(x) = \mathbf{a}^{(k)} = \begin{bmatrix} a_1^{(k)} & a_2^{(k)} & \dots & a_m^{(k)} \end{bmatrix}^T \in \mathbb{R}^m
+\]
+When this vector is passed to the subsequent layer $L^{(k+1)}$, each neuron $j$ in that layer performs a dot product over the iterable collection of inputs:
+\[
+z_j^{(k+1)} = \sum_{i=1}^{m} w_{ji}^{(k+1)} a_i^{(k)} + b_j^{(k+1)}
+\]
+During backpropagation, the autograd engine relies on these explicit multiplicative links to propagate the upstream gradient $\frac{\partial \mathcal{L}}{\partial z_j^{(k+1)}}$ backwards via the Chain Rule:
+\[
+\frac{\partial \mathcal{L}}{\partial a_i^{(k)}} = \sum_{j} \frac{\partial \mathcal{L}}{\partial z_j^{(k+1)}} \cdot w_{ji}^{(k+1)}
+\]
+
+\subsection*{The Functional Rupture}
+
+When the data flows into a single-neuron layer (such as a binary classification output layer where $m = 1$), the expected vector collapses to a scalar value:
+\[
+\mathbf{a}^{(k)} = \begin{bmatrix} a_1^{(k)} \end{bmatrix} \in \mathbb{R}^1
+\]
+The structural flaw occurs when the code strips the sequence wrapper, changing the data type from an iterable collection to a naked, isolated scalar object:
+\[
+\mathbf{a}^{(k)} \longrightarrow a_1^{(k)}
+\]
+If a subsequent processing step or deep architectural layer attempts to consume this output, the initialization mechanism executes a zip operation over the weights and inputs:
+\[
+\text{zip}\left(\mathbf{w}_j^{(k+1)}, a_1^{(k)}\right)
+\]
+Because a single scalar \texttt{Value} object lacks an entry dimension ($\text{dim} \notin \mathbb{R}^n$), the iterable matching sequence immediately truncates to an empty set:
+\[
+\emptyset = \{\}
+\]
+Consequently, the linear combination evaluates to a dead end:
+\[
+z_j^{(k+1)} = \sum(\emptyset) + b_j^{(k+1)} = b_j^{(k+1)}
+\]
+The true input elements $a_i^{(k)}$ are completely omitted from the equation. Because the mathematical multiplication $w \cdot x$ never occurs in memory, no computational dependency edges are created in the autograd directed acyclic graph (DAG).
+
+When calling the backward pass, the partial derivative of the output with respect to the input evaluates to a hard zero:
+\[
+\frac{\partial z_j^{(k+1)}}{\partial a_i^{(k)}} = 0
+\]
+The gradient chain vanishes completely at this junction. The backpropagation signal cannot bridge the missing link, leaving all previous layer weights $\mathbf{w}^{(1)}, \dots, \mathbf{w}^{(k)}$ with zero gradients ($\mathbf{g} = \mathbf{0}$), freezing training permanently.
+
+\subsection*{The Implementation Solution}
+
+To resolve the type mutation and prevent the tracking graph from rupturing, a defensive type-enforcement guard is introduced mathematically and programmatically:
+\[
+\mathbf{x} = \begin{cases} \mathbf{x}, & \text{if } \mathbf{x} \text{ is an iterable collection} \\ \begin{bmatrix} \mathbf{x} \end{bmatrix}, & \text{if } \mathbf{x} \text{ is a naked scalar object} \end{cases}
+\]
+In code, this mathematical conditional check is executed directly within the layer forward pass:
+
+\begin{lstlisting}[language=Python, style=pythonstyle]
+class Layer:
+    def __init__(self, nin, nout, activation='tanh'):
+        self.neurons = [Neuron(nin, activation) for _ in range(nout)]
+
+    def __call__(self, x):
+        # TYPE GUARD: Force scalar objects back into an iterable tensor/list dimension
+        if not isinstance(x, (list, tuple)):
+            x = [x]
+            
+        outs = [n(x) for n in self.neurons]
+        return outs[0] if len(outs) == 1 else outs
+\end{lstlisting}
+
+By guaranteeing that $x$ always preserves an explicit dimension sequence ($x \in \mathbb{R}^n$ where $n \ge 1$), the zip pairing mechanism is structurally preserved:
+\[
+\text{zip}\left(\mathbf{w}_j^{(k+1)}, \begin{bmatrix} a_1^{(k)} \end{bmatrix}\right) \implies \left(w_{j1}^{(k+1)}, a_1^{(k)}\right)
+\]
+The complete mathematical operation $w_{j1}^{(k+1)} \cdot a_1^{(k)}$ is registered by the autograd engine, preserving a valid localized Jacobian matrix and allowing gradient flow to propagate uninhibited through the entire network structure.
+
+\end{document}
