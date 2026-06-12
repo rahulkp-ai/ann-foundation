@@ -1,11 +1,15 @@
 # src/nn.py
+import math
 import random
 from .engine import Value
 
+
 class Neuron:
     def __init__(self, nin, activation='tanh'):
-        # FIXED: Scale weights down by 0.1 to avoid saturation early on
-        self.w = [Value(random.uniform(-1, 1) * 0.1) for _ in range(nin)]
+        # Xavier/Glorot initialization — prevents vanishing gradients at init
+        # He init for ReLU (scale by sqrt(2/n)), Xavier for tanh/sigmoid (sqrt(1/n))
+        scale = math.sqrt(2.0 / nin) if activation == 'relu' else math.sqrt(1.0 / nin)
+        self.w = [Value(random.uniform(-scale, scale)) for _ in range(nin)]
         self.b = Value(0.0)
         self.activation = activation
 
@@ -13,7 +17,7 @@ class Neuron:
         # Ensure inputs are treated as Value instances
         x = [xi if isinstance(xi, Value) else Value(xi) for xi in x]
         act = sum((wi * xi for wi, xi in zip(self.w, x)), self.b)
-        
+
         if self.activation == 'tanh':
             return act.tanh()
         elif self.activation == 'relu':
@@ -37,7 +41,7 @@ class Layer:
         self.neurons = [Neuron(nin, activation) for _ in range(nout)]
 
     def __call__(self, x):
-        # FIXED: Ensure input x is always processed as a list/iterable
+        # Ensure input x is always processed as a list/iterable
         if not isinstance(x, (list, tuple)):
             x = [x]
         outs = [n(x) for n in self.neurons]
@@ -54,12 +58,12 @@ class MLP:
     def __init__(self, nin, nouts, activation='tanh'):
         sizes = [nin] + nouts
         self.layers = []
-        
-        # FIXED: Build hidden layers using your chosen activation
+
+        # Hidden layers use the chosen activation
         for i in range(len(nouts) - 1):
             self.layers.append(Layer(sizes[i], sizes[i + 1], activation))
-            
-        # FIXED: Output layer must be 'linear' so MSE loss can compute cleanly
+
+        # Output layer is always linear so MSE loss computes cleanly
         self.layers.append(Layer(sizes[-2], sizes[-1], activation='linear'))
 
     def __call__(self, x):
