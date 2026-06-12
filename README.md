@@ -1,3 +1,23 @@
+---
+title: ANN Foundation
+emoji: 🧠
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: 4.0.0
+app_file: app.py
+pinned: false
+license: mit
+short_description: Autograd engine and MLP built from scratch in pure Python
+tags:
+  - deep-learning
+  - machine-learning
+  - autograd
+  - neural-network
+  - education
+  - python
+---
+
 # ANN Foundation
 
 > A minimal autograd engine and neural network library built from scratch in pure Python — no PyTorch, no TensorFlow.
