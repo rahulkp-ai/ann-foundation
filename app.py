@@ -45,15 +45,20 @@ def run_mlp_demo(epochs: int, lr: float):
 
     log = []
     for epoch in range(epochs):
+        # 1. zero gradients at the START of each epoch
+        model.zero_grad()
+
+        # 2. fresh forward pass
         total_loss = Value(0.0)
         for x, y_true in data:
             y_pred = model(x)
             loss = (y_pred - y_true) ** 2
             total_loss = total_loss + loss
 
-        model.zero_grad()
+        # 3. backward
         total_loss.backward()
 
+        # 4. gradient descent update
         for p in model.parameters():
             p.data -= lr * p.grad
 
@@ -68,7 +73,6 @@ def run_mlp_demo(epochs: int, lr: float):
         preds.append(f"Input {x} → Predicted: {y_pred.data:.3f} | True: {y_true}")
 
     return "\n".join(log) + "\n\n## Predictions\n" + "\n".join(preds)
-
 
 with gr.Blocks(title="ANN Foundation — Autograd Demo") as demo:
     gr.Markdown("""
