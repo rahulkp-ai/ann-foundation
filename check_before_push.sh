@@ -26,20 +26,16 @@ print('   Gradients: PASS')
 
 echo ""
 echo "3. Verifying MLP learns XOR..."
+# In check_before_push.sh, replace "python app.py" with:
 python -c "
+import gradio as gr
 from src.engine import Value
 from src.nn import MLP
-model = MLP(nin=2, nouts=[4, 4, 1])
-data = [([0.,0.],-1.),([0.,1.],1.),([1.,0.],1.),([1.,1.],-1.)]
-for _ in range(200):
-    model.zero_grad()
-    loss = Value(0.0)
-    for x,y in data:
-        loss = loss + (model(x) - y)**2
-    loss.backward()
-    for p in model.parameters(): p.data -= 0.05 * p.grad
-assert loss.data < 0.5, f'MLP did not learn: final loss = {loss.data:.4f}'
-print(f'   MLP training: PASS  (final loss: {loss.data:.4f})')
+from app import run_autograd_demo, run_mlp_demo
+r = run_mlp_demo(200, 0.05)
+final = float([l for l in r.split('\n') if 'Final Loss' in l][0].split(': ')[1])
+assert final < 0.5, f'MLP failed: {final}'
+print('App functions: PASS')
 "
 
 echo ""
